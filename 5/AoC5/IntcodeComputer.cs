@@ -127,6 +127,5 @@ namespace AoC5
             pc++;
             return output;
         }
-
     }
 }
