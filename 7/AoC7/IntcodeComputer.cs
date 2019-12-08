@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -7,20 +8,24 @@ namespace AoC7
     public class IntcodeComputer
     {
         public int[] Mem { get; }
-        public Stack<int> StdIn { get; }
-        public List<int> StdOut { get; }
-        
+        public string Name { get; }
+        public BlockingCollection<int> StdIn { get; private set; }
+        public BlockingCollection<int> StdOut { get; private set; }
+        public int LastOutput = 0;
+
         private int pc = 0;
         private Stack<bool> modes = new Stack<bool>();
         private readonly Dictionary<int, Action> opcodes;
         private bool halted = false;
 
-        public IntcodeComputer(int[] mem, List<int> inputs)
+        public IntcodeComputer(int[] mem, string name)
         {
             Mem = mem;
-            inputs.Reverse();
-            StdIn = new Stack<int>(inputs);
-            StdOut = new List<int>();
+            Name = name;
+
+            StdIn = new BlockingCollection<int>(new ConcurrentQueue<int>());
+            StdOut = new BlockingCollection<int>(new ConcurrentQueue<int>());
+
             opcodes = new Dictionary<int, Action>() {
                 { 1, Add },
                 { 2, Mult },
@@ -34,7 +39,8 @@ namespace AoC7
             };
         }
 
-        public List<int> Run()
+
+        public int Run()
         {
             while (!halted)
             {
@@ -51,7 +57,7 @@ namespace AoC7
                 opcodes[opcode]();
             }
 
-            return StdOut;
+            return LastOutput;
         }
 
         public string Dump()
@@ -62,6 +68,11 @@ namespace AoC7
         public int Dump(int index)
         {
             return Mem[index];
+        }
+
+        public void Pipe(BlockingCollection<int> stdIn)
+        {
+            StdIn = stdIn;
         }
 
         private void Add()
@@ -80,12 +91,14 @@ namespace AoC7
 
         private void Input()
         {
-            Store(Read(true), StdIn.Pop());
+            var input = StdIn.Take();
+            Store(Read(true), input);
         }
 
         private void Output()
         {
-            StdOut.Add(Read());
+            LastOutput = Read();
+            StdOut.Add(LastOutput);
         }
 
         private void JmpTrue()
